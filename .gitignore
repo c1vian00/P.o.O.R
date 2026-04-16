@@ -1,0 +1,22 @@
+# API Keys and Secrets
+.env
+
+# Python Virtual Environment
+venv/
+.venv/
+env/
+
+# Data and Databases
+app/backend/rag/chroma_db/
+scripts/*.json
+data/
+
+# Python Cache & Metadata
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# System Files
+.DS_Store
+Thumbs.db
