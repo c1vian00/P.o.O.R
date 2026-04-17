@@ -1,31 +1,34 @@
-import json
+import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-RAW_DATA_FILE = "./scripts/raw_text.json"
-CHUNKS_FILE = "./scripts/chunks.json"
+EXTRACTED_DIR = os.path.join(os.getcwd(), 'data', 'extracted_text')
+CHUNKS_DIR = os.path.join(os.getcwd(), 'data', 'chunks')
+os.makedirs(CHUNKS_DIR, exist_ok=True)
 
-def create_chunks():
-    with open(RAW_DATA_FILE, "r") as f:
-        data = json.load(f)
-    
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=200)
-    all_chunks = []
-    
-    print("Splitting and trimming chunks...")
+text_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=100,
+    separators=["\n\n", "\n", " ", ""]
+)
 
-    for item in data:
-        chunks = splitter.split_text(item["text"]) 
-        for c in chunks:
-            if c.strip():
-                # Keeping the source link in the metadata for each chunk to know what book it came from
-                all_chunks.append({
-                    "text": c.strip(), 
-                    "source": item["source"]
-                })
+def main():
+    for filename in os.listdir(EXTRACTED_DIR):
+        if filename.endswith('.txt'):
+            file_path = os.path.join(EXTRACTED_DIR, filename)
             
-    with open(CHUNKS_FILE, "w") as f:
-        json.dump(all_chunks, f)
-    print(f"Created {len(all_chunks)} chunks saved to {CHUNKS_FILE}")
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+            
+            chunks = text_splitter.split_text(text)
+            
+            output_filename = filename.replace('.txt', '_chunks.txt')
+            output_path = os.path.join(CHUNKS_DIR, output_filename)
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                for i, chunk in enumerate(chunks):
+                    f.write(f"--- CHUNK {i} ---\n{chunk}\n\n")
+            
+            print(f"Processed {filename}: Created {len(chunks)} chunks.")
 
 if __name__ == "__main__":
-    create_chunks()
+    main()

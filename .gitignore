@@ -7,16 +7,27 @@ venv/
 env/
 
 # Data and Databases
-app/backend/rag/chroma_db/
-scripts/*.json
-data/
+data/chroma_db/
+data/extracted_text/*
+data/chunks/*
+data/raw_data/*
+# Keep the directory structure in git even if folders are empty
+!data/.gitkeep
 
 # Python Cache & Metadata
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
+.ipynb_checkpoints/
+
+# Node / Frontend
+app/frontend/node_modules/
+app/frontend/build/
+app/frontend/.pnp
+app/frontend/.pnp.js
 
 # System Files
 .DS_Store
 Thumbs.db
+*.log
