@@ -7,75 +7,90 @@ This repository contains the full source code for POOR (Preparation of Oulu Reci
 The application follows a full-stack AI architecture:
 
 - **Frontend:** React-based user interface for recipe queries and result visualization.
-- **Backend:** FastAPI (Python) server orchestrating LLM calls, vector searches and K-Ruoka scraping.
+- **Backend:** FastAPI (Python) server orchestrating LLM calls, vector searches, and SSE streaming.
 - **Database:** ChromaDB persistent vector store for semantic recipe retrieval.
+- **Streaming:** Server-Sent Events (SSE) for real-time, word-by-word recipe generation.
 - **Data Pipeline:** Modular ETL (Extract, Transform, Load) for processing cookbook data.
 
-Raw EPUBs -> extract.py -> chunk.py -> index.py -> ChromaDB -> FastAPI -> React UI
+Raw EPUBs -> ETL Pipeline -> ChromaDB -> RAG Engine -> FastAPI (SSE) -> React UI
 
 ## Project Structure
 ```
-POOR/  
-├── app/  
-│   ├── backend/          # FastAPI server and RAG logic  
-│   └── frontend/         # React application  
-├── data/  
-│   ├── chroma_db/        # Persistent Vector Store (Ignored by Git)  
-│   ├── chunks/           # Processed text segments  
-│   └── extracted_text/   # Cleaned text from EPUBs  
-├── scripts/  
-│   ├── extract.py        # EPUB to Text parser  
-│   ├── chunk.py          # Semantic text splitter  
-│   └── index.py          # ChromaDB ingestion  
-├── .env                  # API Keys and Config  
-└── requirements.txt      # Python dependencies  
+POOR/
+├── app/
+│   ├── backend/          # FastAPI server and RAG logic
+│   │   ├── main.py       # API routes and SSE configuration
+│   │   └── rag/
+│   │       └── rag_engine.py # Database retrieval and Gemini integration
+│   └── frontend/         # React application
+├── data/
+│   ├── chroma_db/        # Persistent Vector Store (Ignored by Git)
+│   ├── chunks/           # Processed text segments
+│   └── extracted_text/   # Cleaned text from EPUBs
+├── scripts/
+│   ├── extract.py        # EPUB to Text parser
+│   ├── chunk.py          # Semantic text splitter
+│   └── index.py          # ChromaDB ingestion
+├── .env                  # API Keys (Google Gemini) and Config
+└── requirements.txt      # Python dependencies
 ```
 
 ## Setup and Running Instructions
 
-1. **Install Backend Dependencies:**  
-   `pip install -r requirements.txt`
+1.  **Install Backend Dependencies:**
+    `pip install -r requirements.txt`
 
-2. **Install Frontend Dependencies:**  
-   `cd app/frontend` -> `npm install`
+2.  **Install Frontend Dependencies:**
+    `cd app/frontend` -> `npm install`
 
-3. **Initialize the Data Pipeline:**  
-   Place the .epub files in the data/ folder, then run:  
-   - `python scripts/extract.py`
-   - `python scripts/chunk.py`
-   - `python scripts/index.py`
+3.  **Initialize the Data Pipeline:**
+    Place the .epub files in the data/ folder, then run:
+    -   `python scripts/extract.py`
+    -   `python scripts/chunk.py`
+    -   `python scripts/index.py`
 
-4. **Start the Application:**  
-   - Backend: uvicorn app.backend.main:app --reload  
-   - Frontend: cd app/frontend && npm start
+4.  **Start the Application:**
+    -   **Backend:** `python -m app.backend.main` (runs on port 8000)
+    -   **Frontend:** `cd app/frontend && npm start`
 
 ## Technical Choices
 
 ### Data Pipeline (scripts/)
 
-1. **extract.py**
-   - **Function:** Scans /data for .epub files, parses XHTML, and saves cleaned .txt files to data/extracted_text/.
-   - **Technology:** EbookLib and BeautifulSoup4.
-   - **Rationale:** EPUBs are zipped HTML. Stripping tags ensures the vector database contains only clean recipe text.
+1.  **extract.py**
+    -   **Function:** Scans /data for .epub files, parses XHTML, and saves cleaned .txt files.
+    -   **Technology:** EbookLib and BeautifulSoup4.
 
-2. **chunk.py**
-   - **Function:** Breaks large text files into 1000-character segments with 100-character overlap.
-   - **Technology:** RecursiveCharacterTextSplitter.
-   - **Rationale:** Segments data to fit LLM context windows while preserving recipe integrity.
+2.  **chunk.py**
+    -   **Function:** Breaks text into 1000-character segments with 100-character overlap.
+    -   **Technology:** RecursiveCharacterTextSplitter.
 
-3. **index.py**
-   - **Function:** Converts text chunks into vectors and stores them in a persistent ChromaDB collection.
-   - **Technology:** ChromaDB with `all-MiniLM-L6-v2` embedding model.
-   - **Rationale:** Enables semantic search and persistent local storage.
+3.  **index.py**
+    -   **Function:** Converts text chunks into vectors for storage.
+    -   **Technology:** ChromaDB with `all-MiniLM-L6-v2` embedding model.
+
+### RAG & API Layer (app/backend/)
+
+1.  **rag\_engine.py**
+    -   **Function:** Performs semantic search against ChromaDB to retrieve relevant recipe context and manages the prompt lifecycle.
+    -   **Technology:** `google-genai` (Gemini 2.5 Flash).
+    -   **Rationale:** Retrieves the top 3 relevant chunks to ground the LLM's responses in local cookbook data.
+
+2.  **main.py**
+    -   **Function:** Provides the `/chat` endpoint using `StreamingResponse`.
+    -   **Technology:** FastAPI with Server-Sent Events (SSE).
+    -   **Rationale:** Streaming allows the UI to display the recipe word-by-word as it is generated, significantly improving perceived latency.
 
 ## Development and Debugging
-The chunk.py script saves are maintained as a dedicated utility to allow developers to inspect the segmentation logic. You can view the human-readable .txt chunks in data/chunks/ to verify that recipe instructions and ingredient lists are being split logically before they are committed to the vector database.
+
+-   **SSE Verification:** The streaming backend can be tested directly in the browser by visiting `http://localhost:8000/chat?message=YOUR\_QUERY`.
+-   **ChromaDB Inspection:** Ensure the collection name in `rag\_engine.py` matches the name initialized in `index.py`.
 
 ## Known Limitations
 
-- **Table Data:** Complex HTML tables in cookbooks may be flattened into single strings during extraction.
-- **Scraper Stability:** The K-Ruoka integration relies on external website selectors which may change over time. But currently there are no API's for any of the major grocery stores in Finland.
-- **Embedding Model:** The local all-MiniLM model is optimized for speed but may be less nuanced than larger commercial API models.
+-   **Table Data:** Complex HTML tables in cookbooks may be flattened into single strings during extraction.
+-   **Scraper Stability:** The K-Ruoka integration relies on external website selectors which may change over time.
+-   **Rate Limits:** Using free-tier Gemini API keys may result in 503 errors during periods of high demand.
 
 ## AI Tools Used
 
