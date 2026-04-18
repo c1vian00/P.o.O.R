@@ -1,7 +1,4 @@
-import json
 import os
-import time
-from collections import defaultdict
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -23,12 +20,13 @@ app.add_middleware(
 class ChatRequest(BaseModel):
     message: str
     history: list = []
-    session_id: str = "default"
+    preferences: dict = {}
+
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
     return StreamingResponse(
-        stream_rag_response(request.message, request.history),
+        stream_rag_response(request.message, request.history, request.preferences),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
