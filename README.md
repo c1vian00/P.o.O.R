@@ -23,7 +23,7 @@ POOR/
 │   │   ├── main.py       # API routes and SSE configuration
 │   │   ├── rag/
 │   │   │   └── rag_engine.py # Metadata-filtered retrieval & Gemini integration
-│   │   └── utils/         # Global utilities
+│   │   └── utils/        # Global utilities
 │   └── frontend/         # React Application
 │       ├── src/          # Source code
 │       │   ├── assets/   # Images, SVGs, and global styles
@@ -57,25 +57,25 @@ POOR/
 
 ## Setup and Running Instructions
 
-1.   **Install Backend Dependencies:**  
-        `pip install -r requirements.txt`
+1.  **Clone the Repository:**
+    `git clone https://github.com/c1vian00/P.o.O.R`
+    `cd P.o.O.R`
 
-2.   **Install Frontend Dependencies:**  
-        `cd app/frontend` -> `npm install`
+2.  **Install Backend Dependencies:** `pip install -r requirements.txt`
 
-3.  **Configure Environment Variables:**  
-     Create a `.env` file in the root folder of the project and add the Google API key:
-    `GOOGLE_API_KEY=actual_api_key_here`
+3.  **Install Frontend Dependencies:** `cd app/frontend && npm install`
 
-4.   **Initialize the Data Pipeline:**  
-        Place the .epub files in the `data/` folder, then run in the following order:
+4.  **Configure Environment Variables:** Create a `.env` file in the root folder of the project and add your Google API key:
+    `GOOGLE_API_KEY=your_actual_api_key_here`
+
+5.  **Initialize the Data Pipeline:** Place your `.epub` cookbooks into the `data/` folder (from the root directory), then run:
     - `python scripts/extract.py`
-    -   `python scripts/chunk.py`
-    -   `python scripts/index.py`
+    - `python scripts/chunk.py`
+    - `python scripts/index.py`
 
-5.   **Start the Application:**
-    - **Backend:** `python -m app.backend.main` (runs on port 8000)
-    - **Frontend:** `cd app/frontend && npm start`
+6.  **Start the Application:**
+    - **Backend:** Open a terminal in the root folder and run `python -m app.backend.main`
+    - **Frontend:** Open a second terminal, navigate to `cd app/frontend` and run `npm run dev` (or `npm run dev` depending on your setup).
 
 ## Technical Choices
 
@@ -122,7 +122,7 @@ This was eye candy to provide the user with a quick visual "receipt" confirming 
 
 ### 10. Decoupled Web-Scraping Microservice (`scraper.py` & `main.py`)
 
-During testing, it became obvious that jamming a heavy, 15-second Playwright browser automation into the middle of a high-speed SSE AI stream would cause a massive traffic jam and freeze the user interface. Furthermore, the K-Market search engine panicked when fed full English ingredient descriptions (like "0.7 lbs boneless, skinless chicken thighs"), returning completely irrelevant items or timing out. 
+During testing, it became obvious that jamming a heavy, 15-second Playwright browser automation into the middle of a high-speed SSE AI stream would cause a massive traffic jam and freeze the user interface. Furthermore, the K-Market search engine panicked when fed full English ingredient descriptions (like "0.7 lbs boneless, skinless chicken thighs"), returning completely irrelevant items or timing out.
 
 - A dedicated API endpoint (`/shop/ingredients`) was created to completely isolate the slow web-scraping task from the fast text generation stream.
 - The LLM prompt was updated to act as a dual-translator. It outputs an array of ingredient objects containing both a hidden `search_term` in Finnish (e.g., "kana") for the scraper to use and the full English description for the UI.
@@ -135,3 +135,19 @@ During testing, it became obvious that jamming a heavy, 15-second Playwright bro
   - Brainstorming project tools
   - Developing project structure
   - Code corrections
+
+## Known Limitations & Future Improvements
+
+While POOR functions as a complete end-to-end prototype, several limitations exist that would need to be addressed before deploying to a public production environment.
+
+### Limitations
+- **Unstable External Data Pipeline (Scraping & Playwright):** The current implementation uses a "brute-force" approach to fetch live data by driving a headless browser (Playwright) to scrape the K-Ruoka website. In a production environment, this would not be ideal because:
+    - **Fragility:** The scraper relies on specific DOM selectors (like `[data-testid='product-price']`). If the website UI changes, the backend breaks instantly.
+    - **Performance and Scaling:** Spinning up a browser instance for every request is resource-heavy. Without a task queue and a caching layer, the server would crash or be IP-banned under moderate load.
+    - **Deployment Complexity:** Cloud deployment is much more difficult due to the need for heavy Docker containers and specific Chromium binaries.
+    - *Note: A real-world application would use an official API, but scraping was used here as a creative workaround for a local prototype.*
+- **Hardcoded Store Data:** The list of Oulu K-Markets is hardcoded in the frontend's `ouluStores.js` file. A scalable version would integrate a Geolocation API to fetch store locations dynamically based on the user's actual GPS coordinates.
+- **No Retrieval Verification (Risk of hallucination):** The current RAG architecture lacks a "retrieval grader." If ChromaDB returns irrelevant text chunks, the LLM might hallucinate. A production-ready version would have used LangGraph to verify context quality before generating a response.
+
+### Future Improvements
+- **Persistence and User Profiles:** The application currently relies on a "stateless" session, meaning user preferences (allergies, moods, and store selections) are lost upon refreshing the browser. A production version would implement a secure authentication system and a relational database to store persistent user profiles. This would allow for "set-it-and-forget-it" allergy safety and a more streamlined UX where the app remembers the user's local store and dietary lifestyle (e.g., Vegan or Keto) automatically.
