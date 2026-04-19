@@ -24,8 +24,22 @@ async def stream_rag_response(user_query, history=[], preferences={}):
     print(f"\n--- NEW REQUEST ---")
     print(f"1. User Query Received: {user_query}")
 
-    pref_string = f"{preferences.get('meal_type', '')} {preferences.get('mood', '')} {preferences.get('time', '')} mins"
-    search_query = f"{user_query} {pref_string}"
+    search_parts = [user_query]
+    
+    if preferences.get('meal_type') and preferences.get('meal_type') != "No specific preference":
+        search_parts.append(preferences['meal_type'])
+        
+    if preferences.get('mood') and preferences.get('mood') != "No specific mood":
+        search_parts.append(preferences['mood'])
+        
+    if preferences.get('time'):
+            search_parts.append(f"{preferences['time']}")
+            
+    if preferences.get('servings'):
+        search_parts.append(preferences['servings'])
+        
+    search_query = " ".join(search_parts)
+    print(f"-> Cleaned Search Query: {search_query}")
     
     context = get_context(search_query)
 
@@ -51,11 +65,13 @@ async def stream_rag_response(user_query, history=[], preferences={}):
     - Allergies: {", ".join(preferences.get('allergies', [])) if preferences.get('allergies') else "None"}
 
     RULES:
-    1. DO NOT give the full recipe immediately.
-    2. Ask 1-2 follow-up questions to narrow down their preference (e.g., time, spice level, ingredients on hand).
-    3. Be friendly and conversational, but also short and to the point.
-    4. Once the user has provided 2-3 preferences (like time and dietary needs), pick the best recipe, start with [RECIPE_FOUND], and provide the full details.
-    5. Do not repeat questions the user has already answered in the CONVERSATION HISTORY.
+    1. IF the user's query is vague (e.g., "I'm hungry"): Ask ONLY 1 follow-up question to find out their desired main ingredient or flavor. Do NOT give a recipe yet.
+    2. IF the user has provided a main ingredient OR a flavor profile, be decisive. First, write a short, friendly sentence confirming your choice (e.g., "I found a great spicy noodle dish for you!"). THEN, immediately output the exact tag [RECIPE_FOUND] followed by the meal in STRICT JSON format.
+    3. Be friendly and conversational in your follow-up questions, but keep them short and to the point.
+    4. The JSON must have exactly these keys: "title" (string), "time" (string), "servings" (string), "ingredients" (list of strings), "instructions" (list of strings).
+    5. DO NOT wrap the JSON in markdown blocks (do not use ```json). Output ONLY the raw JSON object after the tag. Say nothing else after the JSON.
+    6. Do not repeat questions the user has already answered in the CONVERSATION HISTORY.
+    7. CRITICAL SAFETY: You MUST NOT suggest a recipe that contains any ingredients listed in the user's Allergies. If a retrieved recipe contains an allergen, you must either heavily modify the recipe to remove/substitute it, or pick a different recipe entirely.
 
     CONVERSATION HISTORY:
     {history_text}

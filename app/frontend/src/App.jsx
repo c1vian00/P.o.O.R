@@ -9,29 +9,6 @@ import RecipeDisplay from "./components/ui/RecipeDisplay";
 import Header from "./components/ui/Header";
 
 export default function App() {
-  // TO BE DELETED WHEN HOOKED UP WITH BACKEND
-  // mockRecipe was just to see the formatting
-  const mockRecipe = {
-    title: "Oulu-Style Mediterranean Salmon",
-    time: "25 min",
-    servings: "2 People",
-    ingredients: [
-      "2 Salmon fillets (fresh from the market)",
-      "1 tsp Dried oregano",
-      "1 Lemon (sliced)",
-      "2 cloves Garlic (minced)",
-      "1 cup Cherry tomatoes",
-      "Fresh parsley for garnish",
-    ],
-    instructions: [
-      "Preheat your oven to 200°C.",
-      "Place salmon on a baking sheet and season with garlic, oregano, and salt.",
-      "Arrange lemon slices and tomatoes around the fish.",
-      "Bake for 12-15 minutes until the salmon flakes easily with a fork.",
-      "Garnish with parsley and serve immediately.",
-    ],
-  };
-
   /* TIME LIMIT LOGIC */
   const timeBuckets = [5, 15, 30, 45, 60, 90, 120];
   const [bucketIndex, setBucketIndex] = useState(2);
@@ -86,33 +63,143 @@ export default function App() {
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isTyping) return;
 
+    const userText = inputValue;
     const newUserMessage = {
       id: Date.now(),
       role: "user",
-      text: inputValue,
+      text: userText,
     };
 
     setMessages((prev) => [...prev, newUserMessage]);
     setInputValue("");
     setIsTyping(true);
 
-    // TO BE DELETED WHEN HOOKED UP WITH BACKEND
-    // Fake timeout to see how it looked without real data.
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          role: "ai",
-          text: "I've scanned your library! Based on your filters, I found a great match in your 'Mediterranean' book. Loading it now...",
+    const aiMessageId = Date.now() + 1;
+    setMessages((prev) => [...prev, { id: aiMessageId, role: "ai", text: "" }]);
+
+    const currentPreferences = {
+      time: getDisplayTime(),
+      servings: getDisplayPeople(),
+      mood:
+        selectedMoods.length > 0
+          ? selectedMoods.join(", ")
+          : "No specific mood",
+      meal_type: preference === "None" ? "No specific preference" : preference,
+      allergies: selectedExclusions.length > 0 ? selectedExclusions : ["None"],
+    };
+
+    try {
+      const response = await fetch("http://localhost:8000/chat/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      ]);
+        body: JSON.stringify({
+          message: userText,
+          history: messages
+            .filter((m) => m.id !== aiMessageId)
+            .map((m) => ({ role: m.role, content: m.text })),
+          preferences: currentPreferences,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Network response was not ok");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      let buffer = "";
+      let aiFullText = "";
+      let recipeTriggered = false;
+      let recipeJsonBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6).trim();
+            if (!dataStr) continue;
+
+            try {
+              const parsed = JSON.parse(dataStr);
+
+              if (parsed.type === "text" && parsed.content) {
+                let chunkText = parsed.content;
+
+                if (!recipeTriggered) {
+                  aiFullText += chunkText;
+
+                  if (aiFullText.includes("[RECIPE_FOUND]")) {
+                    console.log(
+                      "RECIPE TAG DETECTED! SWITCHING TRACKS TO JSON VAULT",
+                    );
+                    recipeTriggered = true;
+
+                    const parts = aiFullText.split("[RECIPE_FOUND]");
+                    aiFullText = parts[0];
+                    recipeJsonBuffer += parts[1] || "";
+                  }
+
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === aiMessageId
+                        ? { ...msg, text: aiFullText }
+                        : msg,
+                    ),
+                  );
+                } else {
+                  recipeJsonBuffer += chunkText;
+                }
+              } else if (parsed.type === "done") {
+                if (recipeTriggered && recipeJsonBuffer.trim()) {
+                  try {
+                    console.log("Attempting to parse JSON:", recipeJsonBuffer);
+                    const finalRecipe = JSON.parse(recipeJsonBuffer);
+                    const recipeWithTags = {
+                      ...finalRecipe,
+                      tags: {
+                        mood: currentPreferences.mood,
+                        meal_type: currentPreferences.meal_type,
+                        allergies: currentPreferences.allergies,
+                      },
+                    };
+
+                    setCurrentRecipe(recipeWithTags);
+                    console.log("UI Updated successfully!");
+                  } catch (parseError) {
+                    console.error("Uh oh, the AI sent bad JSON:", parseError);
+                    console.log("Raw broken string:", recipeJsonBuffer);
+                  }
+                }
+              }
+            } catch (error) {
+              // Silently ignore split stream chunks
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching stream:", error);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === aiMessageId
+            ? { ...msg, text: "Ugh, the stove broke. Connection error!" }
+            : msg,
+        ),
+      );
+    } finally {
       setIsTyping(false);
-    }, 2000);
+    }
   };
 
   const messagesEndRef = useRef(null);
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -122,18 +209,10 @@ export default function App() {
   }, [messages]);
 
   /* RECIPE LOGIC */
-  // TO BE DELETED: Not really... The state stays but it will initialize as `null` instead of `mockRecipe`
-  const [currentRecipe, setCurrentRecipe] = useState(mockRecipe);
+  const [currentRecipe, setCurrentRecipe] = useState(null);
 
   /* SHOPPING LIST LOGIC */
-  const [shoppingList, setShoppingList] = useState(() => {
-    // TO BE DELETED WHEN HOOKED UP WITH BACKEND
-    return mockRecipe.ingredients.map((ing, index) => ({
-      id: index,
-      name: ing,
-      checked: false,
-    }));
-  });
+  const [shoppingList, setShoppingList] = useState([]);
 
   useEffect(() => {
     if (currentRecipe) {
@@ -207,7 +286,7 @@ export default function App() {
           widthClass="w-1/4 min-w-[300px]"
         >
           <ChatBox
-            messages={messages}
+            messages={messages.filter((msg) => msg.text !== "")}
             isTyping={isTyping}
             inputValue={inputValue}
             setInputValue={setInputValue}

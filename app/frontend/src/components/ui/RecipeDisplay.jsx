@@ -4,7 +4,6 @@ export default function RecipeDisplay({ currentRecipe, setCurrentRecipe }) {
   return (
     <div className="h-full flex flex-col">
       {!currentRecipe ? (
-        /* Empty State View */
         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white/50">
           <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
             <span className="text-2xl">🍳</span>
@@ -33,7 +32,8 @@ export default function RecipeDisplay({ currentRecipe, setCurrentRecipe }) {
               {currentRecipe.title}
             </h2>
 
-            <div className="flex gap-4">
+            {/* Slider Pills */}
+            <div className="flex gap-4 mb-3">
               <div className="flex items-center text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded">
                 ⏱️ {currentRecipe.time}
               </div>
@@ -41,6 +41,44 @@ export default function RecipeDisplay({ currentRecipe, setCurrentRecipe }) {
                 👥 {currentRecipe.servings}
               </div>
             </div>
+
+            {/* Dynamic Filter Pills */}
+            {currentRecipe.tags && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {/* Mood Pills */}
+                {currentRecipe.tags.mood &&
+                  currentRecipe.tags.mood !== "No specific mood" &&
+                  currentRecipe.tags.mood.split(", ").map((m, i) => (
+                    <span
+                      key={`mood-${i}`}
+                      className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-500 bg-indigo-50/50 border border-indigo-100 rounded-full"
+                    >
+                      {m}
+                    </span>
+                  ))}
+
+                {/* Preference Pill */}
+                {currentRecipe.tags.meal_type &&
+                  currentRecipe.tags.meal_type !== "No specific preference" && (
+                    <span className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50/50 border border-emerald-100 rounded-full">
+                      {currentRecipe.tags.meal_type}
+                    </span>
+                  )}
+
+                {/* Exclusion Pills */}
+                {currentRecipe.tags.allergies &&
+                  !currentRecipe.tags.allergies.includes("None") &&
+                  currentRecipe.tags.allergies.map((allergy, i) => (
+                    <span
+                      key={`allergy-${i}`}
+                      className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-red-400/70 bg-red-50 border border-red-100 rounded-full line-through decoration-red-400/50"
+                      style={{ textDecorationThickness: "2px" }}
+                    >
+                      {allergy}
+                    </span>
+                  ))}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-8">
