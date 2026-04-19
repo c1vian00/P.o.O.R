@@ -8,6 +8,12 @@ CHUNKS_DIR = os.path.join(ROOT_DIR, 'data', 'chunks')
 DB_PATH = os.path.join(ROOT_DIR, 'data', 'chroma_db')
 
 def main():
+    for path in [CHUNKS_DIR, DB_PATH]:
+        dir_to_make = path if path == CHUNKS_DIR else os.path.dirname(path)
+        if not os.path.exists(dir_to_make):
+            os.makedirs(dir_to_make, exist_ok=True)
+            print(f"Created missing directory: {dir_to_make}")
+
     client = chromadb.PersistentClient(path=DB_PATH)
     embedding_func = embedding_functions.DefaultEmbeddingFunction()
 
@@ -22,10 +28,6 @@ def main():
         name="cookbook_recipes",
         embedding_function=embedding_func
     )
-
-    if not os.path.exists(CHUNKS_DIR):
-        print(f"Error: {CHUNKS_DIR} not found.")
-        return
 
     all_documents = []
     all_metadatas = []
