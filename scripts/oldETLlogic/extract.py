@@ -1,5 +1,4 @@
 import os
-import json
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
@@ -10,28 +9,20 @@ OUTPUT_DIR = os.path.join(BASE_DATA_DIR, 'extracted_text')
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-def extract_structured_data(epub_path):
-    """Extracts text while trying to preserve chapter boundaries."""
+def extract_text_from_epub(epub_path):
+    """Extracts clean text from a single EPUB file."""
     try:
         book = epub.read_epub(epub_path)
-        structured_data = []
+        full_text = []
         
         for item in book.get_items():
             if item.get_type() == ebooklib.ITEM_DOCUMENT:
                 soup = BeautifulSoup(item.get_content(), 'html.parser')
-                
-                title_tag = soup.find(['h1', 'h2', 'h3'])
-                section_title = title_tag.get_text(strip=True) if title_tag else "Unknown Section"
-                
-                text = soup.get_text(separator='\n', strip=True)
-                
-                if text and len(text) > 50:
-                    structured_data.append({
-                        "section_title": section_title,
-                        "content": text
-                    })
-                    
-        return structured_data
+                text = soup.get_text(separator=' ', strip=True)
+                if text:
+                    full_text.append(text)
+        
+        return "\n\n".join(full_text)
     except Exception as e:
         print(f"Error processing {epub_path}: {e}")
         return None
@@ -45,16 +36,16 @@ def main():
         if filename.endswith('.epub'):
             file_path = os.path.join(INPUT_DIR, filename)
             
-            output_filename = os.path.splitext(filename)[0] + ".json" 
+            output_filename = os.path.splitext(filename)[0] + ".txt"
             output_path = os.path.join(OUTPUT_DIR, output_filename)
             
             print(f"Extracting: {filename}...")
-            content_list = extract_structured_data(file_path)
+            content = extract_text_from_epub(file_path)
             
-            if content_list:
+            if content:
                 with open(output_path, 'w', encoding='utf-8') as f:
-                    json.dump(content_list, f, indent=4, ensure_ascii=False)
-                print(f"Saved structured data to: {output_path}")
+                    f.write(content)
+                print(f"Saved to: {output_path}")
 
 if __name__ == "__main__":
     main()

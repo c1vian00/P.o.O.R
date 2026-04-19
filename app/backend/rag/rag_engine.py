@@ -14,8 +14,16 @@ collection = client_db.get_collection(name="cookbook_recipes", embedding_functio
 
 client_ai = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
 
-def get_context(user_query):
-    results = collection.query(query_texts=[user_query], n_results=3)
+def get_context(user_query, search_type="recipe"):
+    """
+    Now filters ChromaDB results by metadata tags.
+    Defaulting to 'recipe' blocks all the informational fluff.
+    """
+    results = collection.query(
+        query_texts=[user_query], 
+        n_results=3,
+        where={"type": search_type}
+    )
     documents = [doc for sublist in results.get('documents', [[]]) for doc in sublist]
     return "\n\n".join(documents)
 
@@ -41,7 +49,7 @@ async def stream_rag_response(user_query, history=[], preferences={}):
     search_query = " ".join(search_parts)
     print(f"-> Cleaned Search Query: {search_query}")
     
-    context = get_context(search_query)
+    context = get_context(search_query, search_type="recipe")
 
     print(f"2. Vector DB Retrieval:")
     if context:

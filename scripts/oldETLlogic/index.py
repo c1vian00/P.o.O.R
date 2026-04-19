@@ -1,5 +1,4 @@
 import os
-import json
 import chromadb
 from chromadb.utils import embedding_functions
 
@@ -11,14 +10,7 @@ def main():
     client = chromadb.PersistentClient(path=DB_PATH)
     embedding_func = embedding_functions.DefaultEmbeddingFunction()
 
-    # Delete old collection if it exists to start fresh each time
-    try:
-        client.delete_collection(name="cookbook_recipes")
-        print("Deleted old database collection.")
-    except ValueError:
-        pass
-
-    collection = client.create_collection(
+    collection = client.get_or_create_collection(
         name="cookbook_recipes",
         embedding_function=embedding_func
     )
@@ -31,24 +23,24 @@ def main():
     all_metadatas = []
     all_ids = []
 
-    print("Preparing JSON chunks for embedding...")
+    print("Preparing chunks for embedding...")
     for filename in os.listdir(CHUNKS_DIR):
-        if filename.endswith('_chunks.json'):
+        if filename.endswith('_chunks.txt'):
+            
             file_path = os.path.join(CHUNKS_DIR, filename)
-            
             with open(file_path, 'r', encoding='utf-8') as f:
-                chunks_data = json.load(f)
+                content = f.read()
             
-            for i, chunk_dict in enumerate(chunks_data):
-                content = chunk_dict.get("content", "").strip()
-                if not content: continue
+            raw_chunks = content.split('--- CHUNK')
+            
+            for i, chunk in enumerate(raw_chunks):
+                if not chunk.strip(): continue 
                 
-                all_documents.append(content)
-                all_metadatas.append({
-                    "source": filename.replace('_chunks.json', '.epub'),
-                    "type": chunk_dict.get("chunk_type", "informational")
-                })
-                all_ids.append(f"{filename}_{i}")
+                clean_content = chunk.split('---', 1)[-1].strip()
+                if clean_content:
+                    all_documents.append(clean_content)
+                    all_metadatas.append({"source": filename.replace('_chunks.txt', '.epub')})
+                    all_ids.append(f"{filename}_{i}")
 
     if all_documents:
         batch_size = 2000 
@@ -66,7 +58,7 @@ def main():
             )
             print(f"Finished indexing chunks {i} to {end}")
 
-        print(f"\nFinished! Total items in smart database: {collection.count()}")
+        print(f"\nFinished! Total items in database: {collection.count()}")
     else:
         print("No documents found to index.")
 
