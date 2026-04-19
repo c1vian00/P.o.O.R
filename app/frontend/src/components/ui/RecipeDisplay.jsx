@@ -94,7 +94,7 @@ export default function RecipeDisplay({ currentRecipe, setCurrentRecipe }) {
                     className="flex items-center text-slate-700 text-sm"
                   >
                     <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full mr-3 shrink-0"></span>
-                    {ing}
+                    {ing.name}
                   </li>
                 ))}
               </ul>

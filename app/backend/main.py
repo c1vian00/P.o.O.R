@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from app.backend.rag.rag_engine import get_context, stream_rag_response
+from app.backend.utils.scraper import fetch_ingredient_prices
 
 load_dotenv()
 app = FastAPI(title="POOR Recipe API")
@@ -25,6 +26,10 @@ class ChatRequest(BaseModel):
     history: list = []
     preferences: dict = {}
 
+class ShopRequest(BaseModel):
+    store_id: str
+    ingredients: list[str]
+
 
 @app.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
@@ -36,6 +41,20 @@ async def chat_stream(request: ChatRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+@app.post("/shop/ingredients")
+async def shop_ingredients(request: ShopRequest):
+    try:
+        print(f"Shopping request received for store: {request.store_id}")
+        print(f"Items to fetch: {request.ingredients}")
+        
+        # Dispatch the headless browser
+        prices = await fetch_ingredient_prices(request.store_id, request.ingredients)
+        
+        return {"status": "success", "data": prices}
+    except Exception as e:
+        print(f"Scraper crashed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch prices from the store.")
 
 if __name__ == "__main__":
     import uvicorn

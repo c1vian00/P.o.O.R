@@ -53,7 +53,7 @@ export default function App() {
     {
       id: 1,
       role: "ai",
-      text: "Moi! I'm your POOR assistant. Ready to cook something great in Oulu today?",
+      text: "Moi, I'm your POOR Cook! What are we cooking today? Let me know if you have any preferences or ingredients on hand!",
     },
   ]);
 
@@ -216,9 +216,11 @@ export default function App() {
 
   useEffect(() => {
     if (currentRecipe) {
-      const items = currentRecipe.ingredients.map((ing, index) => ({
+      // The AI now returns an array of objects: { name: "...", search_term: "..." }
+      const items = currentRecipe.ingredients.map((ingObj, index) => ({
         id: index,
-        name: ing,
+        name: ingObj.name, // What the user sees (e.g., "0.7 lbs chicken thighs")
+        searchTerm: ingObj.search_term, // What the scraper uses (e.g., "kana")
         checked: false,
       }));
       setShoppingList(items);
@@ -242,21 +244,53 @@ export default function App() {
   const [selectedStore, setSelectedStore] = useState(OULU_STORES[0].id);
   const [isFetchingPrices, setIsFetchingPrices] = useState(false);
 
+  // REPLACED DUMMY FUNCTION WITH REAL BACKEND CALL
   const findPrices = async () => {
+    if (shoppingList.length === 0) return;
+
     setIsFetchingPrices(true);
 
-    // TO BE DELETED WHEN HOOKED UP WITH BACKEND
-    // This will trigger Playwright, to do the actual scraping and return the real prices.
-    setTimeout(() => {
-      setShoppingList((prev) =>
-        prev.map((item) => ({
-          ...item,
-          // Giving each item a random price between 1€ and 8€
-          price: (Math.random() * 7 + 1).toFixed(2) + "€",
-        })),
+    try {
+      // 1. Extract the FINNISH search terms to send to the backend
+      const searchTerms = shoppingList.map((item) => item.searchTerm);
+
+      // 2. Make the POST request to our endpoint
+      const response = await fetch("http://localhost:8000/shop/ingredients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          store_id: selectedStore,
+          ingredients: searchTerms, // Pass the clean keywords here!
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const priceData = result.data;
+
+      // 3. Update the shopping list state with the new prices
+      setShoppingList((prevList) =>
+        prevList.map((item) => {
+          // Look up the price using the Finnish searchTerm, not the English name
+          const itemPrices = priceData[item.searchTerm];
+
+          if (itemPrices && itemPrices.length > 0) {
+            return { ...item, price: itemPrices[0].price };
+          }
+
+          return { ...item, price: "Not found" };
+        }),
       );
+    } catch (error) {
+      console.error("Failed to fetch prices:", error);
+    } finally {
       setIsFetchingPrices(false);
-    }, 2500);
+    }
   };
 
   return (

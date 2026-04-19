@@ -120,9 +120,18 @@ The frontend was decomposed into atomic, reusable components. Shared data points
 Active user filters are stamped directly onto the JSON recipe object and rendered as visual UI pills when shown in a recipe, utilizing dynamic inline styling to clearly cross out excluded allergens (e.g., a thick red strikethrough).
 This was eye candy to provide the user with a quick visual "receipt" confirming the AI listened to their constraints. It visually bridges the gap between the sidebar filters and the final generated output.
 
+### 10. Decoupled Web-Scraping Microservice (`scraper.py` & `main.py`)
+
+During testing, it became obvious that jamming a heavy, 15-second Playwright browser automation into the middle of a high-speed SSE AI stream would cause a massive traffic jam and freeze the user interface. Furthermore, the K-Market search engine panicked when fed full English ingredient descriptions (like "0.7 lbs boneless, skinless chicken thighs"), returning completely irrelevant items or timing out. 
+
+- A dedicated API endpoint (`/shop/ingredients`) was created to completely isolate the slow web-scraping task from the fast text generation stream.
+- The LLM prompt was updated to act as a dual-translator. It outputs an array of ingredient objects containing both a hidden `search_term` in Finnish (e.g., "kana") for the scraper to use and the full English description for the UI.
+- A headless Playwright script utilizes these clean keywords to navigate K-Ruoka, select the user's specific local store and fetch real-time prices in the background.
+- Regular Expressions (Regex) are applied to the scraped data before it hits the frontend, aggressively stripping away localized formatting fluff (like "Hinta" and "kappale") to deliver a clean, minimalist Euro amount to the user's shopping list.
+
 ## AI Tools Used
 
 - Gemini used for:
   - Brainstorming project tools
   - Developing project structure
-  - Code corrections because I suck
+  - Code corrections
